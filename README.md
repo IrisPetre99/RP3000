@@ -2,8 +2,18 @@
 
 ## Current functionality:
 
-Currently, this tool can import a video, and has options to select 
+This tool was designed to import and annotate videos to be used in the evaluation of real-world optical flow datasets. Currently, the tool supports the following functionatilies:
 
+- Import of a video (.mp4, .avi, .mov)
+- Selection of frames through a slider.
+- Selection of frames via a timestamp input. Used for general. Most hollistic approach 
+- Selection of frames via _Previous_ and _Next_ Buttons. Most granular approach.
+- An offset input field, which shows how many many frames apart the two images are. By default, this is set to 1.
+- The ability to pan and zoom both images, such that pixels can be very clearly mapped and located between frames.
+
+The tool is yet to implement the following:
+- The ability to select a pixel from one frame, and map it to another
+- The ability to export the resultant sparse vector field in a form understandable or comparable with the current model outputs. 
 
 
 ## Prompts used

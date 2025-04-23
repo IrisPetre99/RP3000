@@ -1,12 +1,8 @@
-import sys
+import random, sys
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt, QRectF, QPointF
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QColor
 import cv2
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QSlider, QFileDialog,
-    QVBoxLayout, QHBoxLayout, QSpinBox, QLineEdit, QSizePolicy,
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsSceneWheelEvent
-)
-from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QPixmap, QImage
 
 class ZoomPanGraphicsView(QGraphicsView):
     def __init__(self):
@@ -18,11 +14,12 @@ class ZoomPanGraphicsView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
 
-    def set_image(self, qimage):
+    def set_image(self, qimage, reset_view=False):
         pix = QPixmap.fromImage(qimage)
         self.pixmap_item.setPixmap(pix)
         self.setSceneRect(QRectF(pix.rect()))
-        self.resetTransform()
+        if reset_view:
+            self.resetTransform()
 
     def wheelEvent(self, event: QGraphicsSceneWheelEvent):
         zoom_factor = 1.25
@@ -44,30 +41,30 @@ class VideoFrameComparer(QWidget):
         self.offset = 1
         self.video_path = ""
 
+        self.annotations = []
+        self.selected_frame1_point = None
+        self.selected_frame2_point = None
+        self.max_pairs = 10
+        self.colors = []
+
         self.init_ui()
 
     def init_ui(self):
-        # Apply the system's native style
         QApplication.setStyle("fusion")
 
-        # Top: Load video
         self.load_button = QPushButton("Load Video")
         self.load_button.clicked.connect(self.load_video)
         self.video_path_label = QLabel("No video loaded")
-        self.video_path_label.setWordWrap(True)
 
-        # Slider
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setVisible(False)
         self.slider.valueChanged.connect(self.update_frames)
 
-        # Timestamp input
         self.timestamp_input = QLineEdit()
         self.timestamp_input.setPlaceholderText("Enter timestamp (mm:ss)")
         self.timestamp_input.editingFinished.connect(self.update_frame_from_timestamp)
         self.timestamp_input.setVisible(False)
 
-        # Offset
         self.offset_selector = QSpinBox()
         self.offset_selector.setMinimum(1)
         self.offset_selector.setValue(1)
@@ -75,27 +72,28 @@ class VideoFrameComparer(QWidget):
         self.offset_selector.valueChanged.connect(self.update_offset)
         self.offset_selector.setVisible(False)
 
-        # Prev/Next
+        self.pair_limit_selector = QSpinBox()
+        self.pair_limit_selector.setMinimum(1)
+        self.pair_limit_selector.setValue(self.max_pairs)
+        self.pair_limit_selector.setPrefix("Max Pairs: ")
+        self.pair_limit_selector.valueChanged.connect(self.set_max_pairs)
+
         self.prev_button = QPushButton("<< Prev")
         self.next_button = QPushButton("Next >>")
         self.prev_button.clicked.connect(self.go_prev)
         self.next_button.clicked.connect(self.go_next)
-        self.prev_button.setEnabled(False)
-        self.next_button.setEnabled(False)
 
-        # Frame numbers above image views
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.undo_annotation)
+
         self.label1 = QLabel("Frame: -")
         self.label2 = QLabel("Frame: -")
 
-        # Image views
         self.image_view1 = ZoomPanGraphicsView()
         self.image_view2 = ZoomPanGraphicsView()
-        self.image_view1.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.image_view2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.image_view1.setBaseSize(600, 400) 
-        self.image_view2.setBaseSize(600, 400)
+        self.image_view1.mousePressEvent = self.handle_click_frame1
+        self.image_view2.mousePressEvent = self.handle_click_frame2
 
-        # Layouts
         main_layout = QVBoxLayout()
 
         # Top area: Load video + path
@@ -104,26 +102,24 @@ class VideoFrameComparer(QWidget):
         load_layout.addWidget(self.video_path_label)
         main_layout.addLayout(load_layout)
 
-        # Slider and Timestamp input (on the same line)
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(self.timestamp_input)
         slider_layout.addWidget(self.slider)
         main_layout.addLayout(slider_layout)
 
-        # Prev/Next/Offset buttons (on a separate line)
         control_layout = QHBoxLayout()
         control_layout.addWidget(self.prev_button)
         control_layout.addWidget(self.offset_selector)
         control_layout.addWidget(self.next_button)
+        control_layout.addWidget(self.pair_limit_selector)
+        control_layout.addWidget(self.undo_button)
         main_layout.addLayout(control_layout)
 
-        # Frame numbers
         label_layout = QHBoxLayout()
         label_layout.addWidget(self.label1, alignment=Qt.AlignCenter)
         label_layout.addWidget(self.label2, alignment=Qt.AlignCenter)
         main_layout.addLayout(label_layout)
 
-        # Images at the very bottom
         image_layout = QHBoxLayout()
         image_layout.addWidget(self.image_view1)
         image_layout.addWidget(self.image_view2)
@@ -131,16 +127,18 @@ class VideoFrameComparer(QWidget):
 
         self.setLayout(main_layout)
 
+    def set_max_pairs(self, val):
+        self.max_pairs = val
+
     def load_video(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mov)")
         if not file_name:
             return
-
         self.cap = cv2.VideoCapture(file_name)
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.video_path = file_name
-
         self.video_path_label.setText(file_name)
+
         self.slider.setMaximum(self.total_frames - 2)
         self.slider.setValue(0)
         self.slider.setVisible(True)
@@ -175,27 +173,92 @@ class VideoFrameComparer(QWidget):
 
         if frame1:
             self.label1.setText(f"Frame: {value}")
-            self.image_view1.set_image(frame1)
+            self.draw_annotations(frame1, frame=1)
         if frame2:
             self.label2.setText(f"Frame: {value + self.offset}")
-            self.image_view2.set_image(frame2)
+            self.draw_annotations(frame2, frame=2)
 
-        # Update timestamp based on slider value
+        # Timestamp update
         seconds = int(self.frame_index / self.cap.get(cv2.CAP_PROP_FPS))
         minutes = seconds // 60
         seconds = seconds % 60
         self.timestamp_input.setText(f"{minutes:02}:{seconds:02}")
 
+    def draw_annotations(self, qimage, frame):
+        image = qimage.copy()
+        painter = QPainter(image)
+
+        # Draw all saved annotations
+        for i, (p1, p2) in enumerate(self.annotations):
+            color = self.colors[i]
+            pen = QPen(color, 12)
+            painter.setPen(pen)
+
+            # Convert the tuple points (x, y) to QPointF
+            p1 = QPointF(p1[0], p1[1])
+            p2 = QPointF(p2[0], p2[1])
+
+            if frame == 1:
+                painter.drawPoint(p1)
+            elif frame == 2:
+                painter.drawPoint(p2)
+
+        # Draw the current temporary point in Frame 1 if it exists
+        if frame == 1 and self.selected_frame1_point:
+            pen = QPen(QColor("yellow"), 12)  # Temporary marker color
+            painter.setPen(pen)
+            point = QPointF(*self.selected_frame1_point)
+            painter.drawPoint(point)
+
+        painter.end()
+
+        if frame == 1:
+            self.image_view1.set_image(image, reset_view=False)
+        else:
+            self.image_view2.set_image(image, reset_view=False)
+
+    def handle_click_frame1(self, event):
+        if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is not None:
+            return
+        pos = event.pos()
+        scene_pos = self.image_view1.mapToScene(pos)
+        self.selected_frame1_point = (scene_pos.x(), scene_pos.y())
+        print(f"Frame1 point selected: ({scene_pos.x():.1f}, {scene_pos.y():.1f})")
+        self.draw_annotations(self.get_frame(self.frame_index), frame=1)
+
+    def handle_click_frame2(self, event):
+        if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is None:
+            return
+        pos = event.pos()
+        scene_pos = self.image_view2.mapToScene(pos)
+        self.selected_frame2_point =  (scene_pos.x(), scene_pos.y())
+        print(f"Frame2 point selected: ({scene_pos.x():.1f}, {scene_pos.y():.1f})")
+        self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
+        self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
+
+        self.selected_frame1_point = None
+        self.selected_frame2_point = None
+        self.update_frames(self.frame_index)
+
+    def undo_annotation(self):
+        if self.annotations:
+            last_pair = self.annotations[-1]
+            self.annotations.pop()
+            self.colors.pop()
+
+            self.selected_frame1_point = None
+            self.selected_frame2_point = None
+            print(
+                f"Undid last annotation: Frame 1 point {last_pair[0]} and Frame 2 point {last_pair[1]}")
+            self.update_frames(self.frame_index)
+
     def update_frame_from_timestamp(self):
         timestamp = self.timestamp_input.text()
         if ':' not in timestamp:
             return
-
         minutes, seconds = map(int, timestamp.split(':'))
         frame_time = minutes * 60 + seconds
         frame_index = int(frame_time * self.cap.get(cv2.CAP_PROP_FPS))
-
-        # Set frame to closest second
         self.slider.setValue(min(frame_index, self.total_frames - 1))
 
     def go_prev(self):

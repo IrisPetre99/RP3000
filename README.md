@@ -37,8 +37,6 @@ A portion of this tool was using with the assistance of artifical intelligence a
 
 ### Future Updates: LLM Prompt
 
-In the list of prompts, I also asked ChatGPT-4-turbo to present a prompt that, when fed into any general purpose LLM, alongside the code, would implement the remaining features. Its response is as follows:
-
 You are working with a PyQt5 GUI application that:
 
 Loads and displays two video frames side-by-side.

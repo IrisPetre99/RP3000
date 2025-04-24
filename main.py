@@ -200,7 +200,7 @@ class VideoFrameComparer(QWidget):
     def draw_annotations(self, qimage, frame):
         image = qimage.copy()
         painter = QPainter(image)
-
+        cross_size = 6
         # Draw all saved annotations
         for i, (p1, p2) in enumerate(self.annotations):
             color = self.colors[i]
@@ -212,16 +212,19 @@ class VideoFrameComparer(QWidget):
             p2 = QPointF(p2[0], p2[1])
 
             if frame == 1:
-                painter.drawPoint(p1)
+                painter.drawLine(QPointF(p1.x() - cross_size, p1.y()), QPointF(p1.x() + cross_size, p1.y()))
+                painter.drawLine(QPointF(p1.x(), p1.y() - cross_size), QPointF(p1.x(), p1.y() + cross_size))
             elif frame == 2:
-                painter.drawPoint(p2)
+                painter.drawLine(QPointF(p2.x() - cross_size, p2.y()), QPointF(p2.x() + cross_size, p2.y()))
+                painter.drawLine(QPointF(p2.x(), p2.y() - cross_size), QPointF(p2.x(), p2.y() + cross_size))
 
         # Draw the current temporary point in Frame 1 if it exists
         if frame == 1 and self.selected_frame1_point:
             pen = QPen(QColor("yellow"), 1)  # Temporary marker color
             painter.setPen(pen)
             point = QPointF(*self.selected_frame1_point)
-            painter.drawPoint(point)
+            painter.drawLine(QPointF(point.x() - cross_size, point.y()), QPointF(point.x() + cross_size, point.y()))
+            painter.drawLine(QPointF(point.x(), point.y() - cross_size), QPointF(point.x(), point.y() + cross_size))
 
         painter.end()
 

@@ -9,10 +9,14 @@ This tool was designed to import and annotate videos to be used in the evaluatio
 - Selection of frames via a timestamp input. Used for general. Most hollistic approach 
 - Selection of frames via _Previous_ and _Next_ Buttons. Most granular approach.
 - An offset input field, which shows how many many frames apart the two images are. By default, this is set to 1.
-- The ability to pan and zoom both images, such that pixels can be very clearly mapped and located between frames.
+- The ability to zoom both images, such that pixels can be very clearly mapped and located between frames. 
+- Selection of a pixel in one frame and mapping it to a corresponding pixel in the subsequent one
+- Annotate multiple pixel pairs, with the maximum number specified by the user 
+- Color-coded annotations for visual clarity 
+- When a pixel is selected in the first frame, it is temporarily colored yellow. After selecting the corresponding pixel in the second frame, the pair is assigned a random color.
+- Undo functionality for the most recent annotation
 
 The tool is yet to implement the following:
-- The ability to select a pixel from one frame, and map it to another
 - The ability to export the resultant sparse vector field in a form understandable or comparable with the current model outputs. 
 
 
@@ -33,7 +37,13 @@ A portion of this tool was using with the assistance of artifical intelligence a
 - Modify this text to be in paragraphs, such that it can be easily copied and stored in a text file.
 - Modify the application again to now provide a box where a desired timestamp can be input. The application will then load the first frame of that timestamp, rounded to the closest second. This will also automatically update when the slider is moved, as well as automatically updating the slider itself when a time is selected. This input should only take effect once the user stops editing the input box.
 - Change the layout such that the previous, next, and offset are on a seperate line than the slider and input field. Additionally, make it such that the offset is found between the previous and next buttons. Finally, make the application's theme match the system theme.
-
+- Allow users to click on a pixel in Frame 1, and then click on the corresponding mapped pixel in Frame 2. 
+- Visually draw a dot pair showing the connection between the two.
+- Allow undoing the most recent annotation. 
+- Allow the user to specify the number of pairs they want to annotate.
+- Each pair should have a unique color.
+- Have an immediate feedback when selecting the point in the first frame by placing a marker on that spot, not only after the complete pair is selected.
+- Store the list of annotations as pairs of coordinates.
 
 ### Future Updates: LLM Prompt
 
@@ -81,9 +91,11 @@ Optionally a .npy file with NumPy arrays if NumPy is available.
 4. Visual Feedback and Usability
 Make sure the UI updates correctly after each annotation.
 
-Do not break zoom and pan functionality.
+Do not break zoom functionality.
 
-If the user switches frames, either persist the annotation view or clear it (you decide based on UX tradeoff and explain the choice).
+Pan was originally triggered via left-click but was changed to use the right-click to avoid conflicts with the new pixel annotation feature. However, due to limitations in Qt's handling of right-click events, the pan functionality has been removed to maintain a usable UI.
+
+Annotations persist when switching frames. It’s easier to manually undo an annotation than to risk losing all annotations by accidentally advancing to the next frame.
 
 Constraints
 The app is currently structured with ZoomPanGraphicsView widgets for both frames.

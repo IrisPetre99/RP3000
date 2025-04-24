@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, QRectF, QPointF
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QColor
 import cv2
+import numpy as np
+import os
 
 class ZoomPanGraphicsView(QGraphicsView):
     def __init__(self):
@@ -28,6 +30,12 @@ class ZoomPanGraphicsView(QGraphicsView):
         else:
             self.scale(1 / zoom_factor, 1 / zoom_factor)
 
+# Convert QImage to RGB numpy
+def qimage_to_rgb(qimage):
+        ptr = qimage.bits()
+        ptr.setsize(qimage.byteCount())
+        arr = np.array(ptr).reshape(qimage.height(), qimage.width(), 3)
+        return arr
 
 class VideoFrameComparer(QWidget):
     def __init__(self):
@@ -94,6 +102,10 @@ class VideoFrameComparer(QWidget):
         self.image_view1.mousePressEvent = self.handle_click_frame1
         self.image_view2.mousePressEvent = self.handle_click_frame2
 
+        self.save_button = QPushButton("Save Annotation")
+        self.save_button.clicked.connect(self.export_to_kitti)
+
+
         main_layout = QVBoxLayout()
 
         # Top area: Load video + path
@@ -113,6 +125,7 @@ class VideoFrameComparer(QWidget):
         control_layout.addWidget(self.next_button)
         control_layout.addWidget(self.pair_limit_selector)
         control_layout.addWidget(self.undo_button)
+        control_layout.addWidget(self.save_button)
         main_layout.addLayout(control_layout)
 
         label_layout = QHBoxLayout()
@@ -268,6 +281,55 @@ class VideoFrameComparer(QWidget):
     def go_next(self):
         new_index = min(self.total_frames - self.offset - 1, self.frame_index + 1)
         self.slider.setValue(new_index)
+
+    # Export the annotation to kitti format 
+    def export_to_kitti(self):
+        if not self.annotations:
+            print("No annotations to export.")
+            return
+
+        export_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
+        if not export_dir:
+            return
+
+        os.makedirs(os.path.join(export_dir, "flow_occ"), exist_ok=True)
+        os.makedirs(os.path.join(export_dir, "image_2"), exist_ok=True)
+
+        # Save the current image pair and flow
+        img1 = self.get_frame(self.frame_index)
+        img2 = self.get_frame(self.frame_index + self.offset)
+    
+        img1_rgb = qimage_to_rgb(img1)
+        img2_rgb = qimage_to_rgb(img2)
+
+        idx = f"{self.frame_index:06d}"
+
+        # Save images as KITTI-compatible
+        cv2.imwrite(os.path.join(export_dir, "image_2", f"{idx}_10.png"), cv2.cvtColor(img1_rgb, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(os.path.join(export_dir, "image_2", f"{idx}_11.png"), cv2.cvtColor(img2_rgb, cv2.COLOR_RGB2BGR))
+
+        # Save flow
+        flow_h = img1.height()
+        flow_w = img1.width()
+        flow_img = np.zeros((flow_h, flow_w, 3), dtype=np.uint16)
+
+        for ((x1, y1), (x2, y2)) in self.annotations:
+            x1_int, y1_int = int(round(x1)), int(round(y1))
+            dx = x2 - x1
+            dy = y2 - y1
+
+            # stores float flow values in 16-bit unsigned integers
+            fx = int((dx * 64.0) + 2**15)
+            fy = int((dy * 64.0) + 2**15)
+
+            if 0 <= y1_int < flow_h and 0 <= x1_int < flow_w:
+                flow_img[y1_int, x1_int, 0] = fx
+                flow_img[y1_int, x1_int, 1] = fy
+                flow_img[y1_int, x1_int, 2] = 1
+
+        cv2.imwrite(os.path.join(export_dir, "flow_occ", f"{idx}_10.png"), flow_img)
+        print(f"Saved frame {idx} pair and flow to: {export_dir}")
+
 
 
 # Run the app

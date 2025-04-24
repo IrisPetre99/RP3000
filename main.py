@@ -204,7 +204,7 @@ class VideoFrameComparer(QWidget):
         # Draw all saved annotations
         for i, (p1, p2) in enumerate(self.annotations):
             color = self.colors[i]
-            pen = QPen(color, 12)
+            pen = QPen(color, 1)
             painter.setPen(pen)
 
             # Convert the tuple points (x, y) to QPointF
@@ -218,7 +218,7 @@ class VideoFrameComparer(QWidget):
 
         # Draw the current temporary point in Frame 1 if it exists
         if frame == 1 and self.selected_frame1_point:
-            pen = QPen(QColor("yellow"), 12)  # Temporary marker color
+            pen = QPen(QColor("yellow"), 1)  # Temporary marker color
             painter.setPen(pen)
             point = QPointF(*self.selected_frame1_point)
             painter.drawPoint(point)
@@ -235,8 +235,9 @@ class VideoFrameComparer(QWidget):
             return
         pos = event.pos()
         scene_pos = self.image_view1.mapToScene(pos)
-        self.selected_frame1_point = (scene_pos.x(), scene_pos.y())
-        print(f"Frame1 point selected: ({scene_pos.x():.1f}, {scene_pos.y():.1f})")
+        x, y = round(scene_pos.x()), round(scene_pos.y())
+        print(f"Frame1 point selected: ({x:.1f}, {y:.1f})")
+        self.selected_frame1_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
         self.draw_annotations(self.get_frame(self.frame_index), frame=1)
 
     def handle_click_frame2(self, event):
@@ -244,8 +245,9 @@ class VideoFrameComparer(QWidget):
             return
         pos = event.pos()
         scene_pos = self.image_view2.mapToScene(pos)
-        self.selected_frame2_point =  (scene_pos.x(), scene_pos.y())
-        print(f"Frame2 point selected: ({scene_pos.x():.1f}, {scene_pos.y():.1f})")
+        x, y = round(scene_pos.x()), round(scene_pos.y())
+        print(f"Frame2 point selected: ({x:.1f}, {y:.1f})")
+        self.selected_frame2_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
         self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
         self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
 

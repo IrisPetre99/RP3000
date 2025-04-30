@@ -116,8 +116,14 @@ class VideoFrameComparer(QWidget):
     def load_video(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mov)")
         if not file_name:
+            QMessageBox.warning(self, "Error", "No video file selected.")
             return
+
         self.cap = cv2.VideoCapture(file_name)
+        if not self.cap.isOpened():
+            QMessageBox.critical(self, "Error", "Failed to open video file.")
+            return
+
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.video_path = file_name
         self.video_path_label.setText(file_name)
@@ -143,6 +149,7 @@ class VideoFrameComparer(QWidget):
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, index)
         ret, frame = self.cap.read()
         if not ret:
+            QMessageBox.warning(self, "Error", "Failed to retrieve frame.")
             return None
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = frame.shape
@@ -150,6 +157,10 @@ class VideoFrameComparer(QWidget):
         return QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
     def update_frames(self, value):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
+
         self.frame_index = value
         frame1 = self.get_frame(value)
         frame2 = self.get_frame(value + self.offset)
@@ -200,6 +211,10 @@ class VideoFrameComparer(QWidget):
             self.image_view2.set_image(image, reset_view=False)
 
     def handle_click_frame1(self, event):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
+
         if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is not None:
             return
         pos = event.pos()
@@ -210,6 +225,10 @@ class VideoFrameComparer(QWidget):
         self.draw_annotations(self.get_frame(self.frame_index), frame=1)
 
     def handle_click_frame2(self, event):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
+
         if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is None:
             return
         pos = event.pos()
@@ -246,23 +265,35 @@ class VideoFrameComparer(QWidget):
         self.slider.setValue(min(frame_index, self.total_frames - 1))
 
     def go_prev(self):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
         new_index = max(0, self.frame_index - 1)
         self.slider.setValue(new_index)
 
     def go_next(self):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
         new_index = min(self.total_frames - self.offset - 1, self.frame_index + 1)
         self.slider.setValue(new_index)
 
+
     def export_annotations(self):
         if not self.annotations:
-            print("No annotations to export.")
+            QMessageBox.warning(self, "Error", "No annotations to export.")
             return
 
         export_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
         if not export_dir:
+            QMessageBox.warning(self, "Error", "No export directory selected.")
             return
 
         img1 = self.get_frame(self.frame_index)
         img2 = self.get_frame(self.frame_index + self.offset)
+
+        if img1 is None or img2 is None:
+            QMessageBox.warning(self, "Error", "Failed to retrieve frames for export.")
+            return
 
         self.exporter.export(self.annotations, self.frame_index, img1, img2, export_dir)

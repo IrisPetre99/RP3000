@@ -1,7 +1,10 @@
-import numpy as np
+from PyQt5.QtGui import QImage
+from qimage2ndarray import rgb_view
 
 def qimage_to_rgb(qimage):
-    ptr = qimage.bits()
-    ptr.setsize(qimage.byteCount())
-    arr = np.array(ptr).reshape(qimage.height(), qimage.width(), 3)
-    return arr
+    try:
+        if qimage.format() != QImage.Format_RGB32:
+            qimage = qimage.convertToFormat(QImage.Format_RGB32)
+        return rgb_view(qimage)
+    except Exception as e:
+        raise RuntimeError(f"Failed to convert QImage to RGB: {str(e)}")

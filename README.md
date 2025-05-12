@@ -15,8 +15,8 @@ This tool was designed to import and annotate videos to be used in the evaluatio
 - Color-coded annotations for visual clarity 
 - When a pixel is selected in the first frame, it is temporarily colored yellow. After selecting the corresponding pixel in the second frame, the pair is assigned a random color.
 - Undo functionality for the most recent annotation
-
-The tool is yet to implement the following:
+- Clear all existing annotations from the current frame pair
+- AAnnotate multiple, different pairs of frames from the same video
 - The ability to export the resultant sparse vector field in a form understandable or comparable with the current model outputs. 
 
 

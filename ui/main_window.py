@@ -66,6 +66,9 @@ class VideoFrameComparer(QWidget):
         self.undo_button = QPushButton("Undo")
         self.undo_button.clicked.connect(self.undo_annotation)
 
+        self.clear_all_annotations_button = QPushButton("Clear all")
+        self.clear_all_annotations_button.clicked.connect(self.clear_annotations)
+
         self.label1 = QLabel("Frame: -")
         self.label2 = QLabel("Frame: -")
 
@@ -96,6 +99,7 @@ class VideoFrameComparer(QWidget):
         control_layout.addWidget(self.pair_limit_selector)
         control_layout.addWidget(self.undo_button)
         control_layout.addWidget(self.save_button)
+        control_layout.addWidget(self.clear_all_annotations_button)
         main_layout.addLayout(control_layout)
 
         label_layout = QHBoxLayout()
@@ -254,6 +258,14 @@ class VideoFrameComparer(QWidget):
             print(
                 f"Undid last annotation: Frame 1 point {last_pair[0]} and Frame 2 point {last_pair[1]}")
             self.update_frames(self.frame_index)
+
+    def clear_annotations(self):
+        self.annotations = []
+        self.colors = []
+        self.selected_frame1_point = None
+        self.selected_frame2_point = None
+        self.update_frames(self.frame_index)
+        print("Cleared all annotations for a new pair of frames.")
 
     def update_frame_from_timestamp(self):
         timestamp = self.timestamp_input.text()

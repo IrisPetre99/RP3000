@@ -30,9 +30,9 @@ class KITTIExporter(Exporter):
             fy = int((dy * 64.0) + 2**15)
 
             if 0 <= y1_int < flow_h and 0 <= x1_int < flow_w:
-                flow_img[y1_int, x1_int, 0] = fx
-                flow_img[y1_int, x1_int, 1] = fy
-                flow_img[y1_int, x1_int, 2] = 1
+                flow_img[y1_int, x1_int, 0] = 1
+                flow_img[y1_int, x1_int, 1] = fx
+                flow_img[y1_int, x1_int, 2] = fy
 
         cv2.imwrite(os.path.join(export_dir, "flow_occ", f"{idx}_10.png"), flow_img)
         print(f"Saved frame {idx} pair and flow to: {export_dir}")

@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import numpy as np
 from exporters.exporter import Exporter
@@ -9,7 +10,16 @@ class KITTIExporter(Exporter):
         img1_rgb = qimage_to_rgb(img1)
         img2_rgb = qimage_to_rgb(img2)
 
-        idx = f"{frame_index:06d}"
+        files = os.listdir(os.path.join(export_dir, "image_2"))
+        largest_index = 0
+        pattern=re.compile(r'(\d{6})_\d{2}\.png')
+        for filename in files:
+            match = pattern.match(filename)
+            if match:
+                index = int(match.group(1))
+                largest_index = max(largest_index, index)
+
+        idx = f"{largest_index+1:06d}"
 
         os.makedirs(os.path.join(export_dir, "flow_occ"), exist_ok=True)
         os.makedirs(os.path.join(export_dir, "image_2"), exist_ok=True)

@@ -10,7 +10,7 @@ class VideoFrameComparer(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Video Frame Comparer")
-        self.setFixedSize(1950, 700)
+        self.setFixedSize(1850, 700)
 
         self.cap = None
         self.total_frames = 0
@@ -200,6 +200,17 @@ class VideoFrameComparer(QWidget):
                 painter.drawLine(QPointF(p2.x() - cross_size, p2.y()), QPointF(p2.x() + cross_size, p2.y()))
                 painter.drawLine(QPointF(p2.x(), p2.y() - cross_size), QPointF(p2.x(), p2.y() + cross_size))
 
+        # Draw the KITTI crop rectangle
+        full_h, full_w = image.height(), image.width()
+        crop_w, crop_h = 1242, 375
+        crop_x1 = (full_w - crop_w) // 2
+        crop_y1 = (full_h - crop_h) // 2
+
+        pen = QPen(QColor(255, 0, 0), 1, Qt.DashLine)  # Red dashed line
+        painter.setPen(pen)
+        painter.drawRect(crop_x1, crop_y1, crop_w, crop_h)
+
+        # Draw selected point
         if frame == 1 and self.selected_frame1_point:
             pen = QPen(QColor("yellow"), 1)
             painter.setPen(pen)

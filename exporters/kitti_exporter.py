@@ -12,7 +12,7 @@ class KITTIExporter(Exporter):
 
         files = os.listdir(os.path.join(export_dir, "image_2"))
         largest_index = 0
-        pattern=re.compile(r'(\d{6})_\d{2}\.png')
+        pattern=re.compile(r'^(\d{6})_\d{2}\.png$')
         for filename in files:
             match = pattern.match(filename)
             if match:

@@ -23,6 +23,7 @@ class VideoFrameComparer(QWidget):
         self.selected_frame2_point = None
         self.max_pairs = 10
         self.colors = []
+        self.export_dir=""
 
         # TODO: Make a drop-down that allows us to set an output format when we need it.
         self.exporter = KITTIExporter()
@@ -35,6 +36,10 @@ class VideoFrameComparer(QWidget):
         self.load_button = QPushButton("Load Video")
         self.load_button.clicked.connect(self.load_video)
         self.video_path_label = QLabel("No video loaded")
+
+        self.export_path_button = QPushButton("Set export path")
+        self.export_path_button.clicked.connect(self.set_export_path)
+        self.export_path_label = QLabel("Not set")
 
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setVisible(False)
@@ -86,6 +91,11 @@ class VideoFrameComparer(QWidget):
         load_layout.addWidget(self.load_button)
         load_layout.addWidget(self.video_path_label)
         main_layout.addLayout(load_layout)
+
+        export_layout = QHBoxLayout()
+        export_layout.addWidget(self.export_path_button)
+        export_layout.addWidget(self.export_path_label)
+        main_layout.addLayout(export_layout)
 
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(self.timestamp_input)
@@ -142,6 +152,13 @@ class VideoFrameComparer(QWidget):
         self.next_button.setEnabled(True)
 
         self.update_frames(0)
+
+    def set_export_path(self):
+        self.export_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
+        if self.export_dir:
+            self.export_path_label.setText(self.export_dir)
+        else:
+            self.export_path_label.setText("Not set")
 
     def update_offset(self, val):
         self.offset = val
@@ -296,8 +313,7 @@ class VideoFrameComparer(QWidget):
             QMessageBox.warning(self, "Error", "No annotations to export.")
             return
 
-        export_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
-        if not export_dir:
+        if not self.export_dir:
             QMessageBox.warning(self, "Error", "No export directory selected.")
             return
 
@@ -308,4 +324,4 @@ class VideoFrameComparer(QWidget):
             QMessageBox.warning(self, "Error", "Failed to retrieve frames for export.")
             return
 
-        self.exporter.export(self.annotations, self.frame_index, img1, img2, export_dir)
+        self.exporter.export(self.annotations, self.frame_index, img1, img2, self.export_dir)

@@ -10,6 +10,9 @@ class KITTIExporter(Exporter):
         img1_rgb = qimage_to_rgb(img1)
         img2_rgb = qimage_to_rgb(img2)
 
+        os.makedirs(os.path.join(export_dir, "flow_occ"), exist_ok=True)
+        os.makedirs(os.path.join(export_dir, "image_2"), exist_ok=True)
+        
         files = os.listdir(os.path.join(export_dir, "image_2"))
         largest_index = 0
         pattern=re.compile(r'^(\d{6})_\d{2}\.png$')
@@ -21,8 +24,6 @@ class KITTIExporter(Exporter):
 
         idx = f"{largest_index+1:06d}"
 
-        os.makedirs(os.path.join(export_dir, "flow_occ"), exist_ok=True)
-        os.makedirs(os.path.join(export_dir, "image_2"), exist_ok=True)
 
         cv2.imwrite(os.path.join(export_dir, "image_2", f"{idx}_10.png"), cv2.cvtColor(img1_rgb, cv2.COLOR_RGB2BGR))
         cv2.imwrite(os.path.join(export_dir, "image_2", f"{idx}_11.png"), cv2.cvtColor(img2_rgb, cv2.COLOR_RGB2BGR))

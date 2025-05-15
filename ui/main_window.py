@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QPainter, QPen, QColor, QImage
 from ui.zoom_pan_graphics_view import ZoomPanGraphicsView
 from exporters.kitti_exporter import KITTIExporter
+import numpy as np
 
 class VideoFrameComparer(QWidget):
     def __init__(self):
@@ -17,10 +18,12 @@ class VideoFrameComparer(QWidget):
         self.frame_index = 0
         self.offset = 1
         self.video_path = ""
-
+        self.mode = "Manual"  # or "Homography"
+        self.helper_annotations = []
         self.annotations = []
         self.selected_frame1_point = None
         self.selected_frame2_point = None
+        self.predicted_point = None
         self.max_pairs = 10
         self.colors = []
 
@@ -69,6 +72,14 @@ class VideoFrameComparer(QWidget):
         self.clear_all_annotations_button = QPushButton("Clear all")
         self.clear_all_annotations_button.clicked.connect(self.clear_annotations)
 
+        self.mode_label = QLabel("Mode: Manual")
+        self.mode_label.setStyleSheet("font-weight: bold; color: green")
+        self.mode_toggle = QPushButton("Toggle Mode")
+        self.mode_toggle.clicked.connect(self.toggle_mode)
+
+        self.suggest_button = QPushButton("Suggest Match")
+        self.suggest_button.clicked.connect(self.suggest_match)
+
         self.label1 = QLabel("Frame: -")
         self.label2 = QLabel("Frame: -")
 
@@ -100,6 +111,9 @@ class VideoFrameComparer(QWidget):
         control_layout.addWidget(self.undo_button)
         control_layout.addWidget(self.save_button)
         control_layout.addWidget(self.clear_all_annotations_button)
+        control_layout.addWidget(self.suggest_button)
+        control_layout.addWidget(self.mode_label)
+        control_layout.addWidget(self.mode_toggle)
         main_layout.addLayout(control_layout)
 
         label_layout = QHBoxLayout()
@@ -181,26 +195,41 @@ class VideoFrameComparer(QWidget):
         seconds = seconds % 60
         self.timestamp_input.setText(f"{minutes:02}:{seconds:02}")
 
+    def toggle_mode(self):
+        if self.mode == "Manual":
+            self.mode = "Homography"
+            self.mode_label.setText("Mode: Homography")
+            self.mode_label.setStyleSheet("font-weight: bold; color: orange")
+        else:
+            self.mode = "Manual"
+            self.mode_label.setText("Mode: Manual")
+            self.mode_label.setStyleSheet("font-weight: bold; color: green")
+
     def draw_annotations(self, qimage, frame):
         image = qimage.copy()
         painter = QPainter(image)
         cross_size = 6
-        for i, (p1, p2) in enumerate(self.annotations):
-            color = self.colors[i]
-            pen = QPen(color, 1)
-            painter.setPen(pen)
 
-            p1 = QPointF(p1[0], p1[1])
-            p2 = QPointF(p2[0], p2[1])
+        if self.mode == "Manual":
+            for i, (p1, p2) in enumerate(self.annotations):
+                color = self.colors[i]
+                pen = QPen(color, 1)
+                painter.setPen(pen)
 
-            if frame == 1:
-                painter.drawLine(QPointF(p1.x() - cross_size, p1.y()), QPointF(p1.x() + cross_size, p1.y()))
-                painter.drawLine(QPointF(p1.x(), p1.y() - cross_size), QPointF(p1.x(), p1.y() + cross_size))
-            elif frame == 2:
-                painter.drawLine(QPointF(p2.x() - cross_size, p2.y()), QPointF(p2.x() + cross_size, p2.y()))
-                painter.drawLine(QPointF(p2.x(), p2.y() - cross_size), QPointF(p2.x(), p2.y() + cross_size))
+                p = QPointF(*(p1 if frame == 1 else p2))
+                painter.drawLine(QPointF(p.x() - cross_size, p.y()), QPointF(p.x() + cross_size, p.y()))
+                painter.drawLine(QPointF(p.x(), p.y() - cross_size), QPointF(p.x(), p.y() + cross_size))
+        elif self.mode == "Homography":
+            for i, (p1, p2) in enumerate(self.helper_annotations):
+                color = self.colors[i]
+                pen = QPen(color, 1)
+                painter.setPen(pen)
 
-        # Draw the KITTI crop rectangle
+                p = QPointF(*(p1 if frame == 1 else p2))
+                painter.drawLine(QPointF(p.x() - cross_size, p.y()), QPointF(p.x() + cross_size, p.y()))
+                painter.drawLine(QPointF(p.x(), p.y() - cross_size), QPointF(p.x(), p.y() + cross_size))
+
+        # Draw KITTI crop rectangle
         full_h, full_w = image.height(), image.width()
         crop_w, crop_h = 1242, 375
         crop_x1 = (full_w - crop_w) // 2
@@ -210,13 +239,20 @@ class VideoFrameComparer(QWidget):
         painter.setPen(pen)
         painter.drawRect(crop_x1, crop_y1, crop_w, crop_h)
 
-        # Draw selected point
         if frame == 1 and self.selected_frame1_point:
             pen = QPen(QColor("yellow"), 1)
             painter.setPen(pen)
             point = QPointF(*self.selected_frame1_point)
             painter.drawLine(QPointF(point.x() - cross_size, point.y()), QPointF(point.x() + cross_size, point.y()))
             painter.drawLine(QPointF(point.x(), point.y() - cross_size), QPointF(point.x(), point.y() + cross_size))
+
+        # Draw predicted point
+        if frame == 2 and self.mode=="Homography" and self.predicted_point:
+            pen = QPen(QColor("cyan"), 1)
+            painter.setPen(pen)
+            px, py = self.predicted_point
+            painter.drawLine(QPointF(px - cross_size, py), QPointF(px + cross_size, py))
+            painter.drawLine(QPointF(px, py - cross_size), QPointF(px, py + cross_size))
 
         painter.end()
 
@@ -225,56 +261,151 @@ class VideoFrameComparer(QWidget):
         else:
             self.image_view2.set_image(image, reset_view=False)
 
+    def suggest_match(self):
+        if self.selected_frame1_point is None or len(self.helper_annotations) < 4:
+            QMessageBox.information(self, "Info",
+                                    "Need at least four existing annotations and a selected Frame 1 point.")
+            return
+
+        src_pts = np.array([p1 for p1, _ in self.helper_annotations], dtype=np.float32)
+        dst_pts = np.array([p2 for _, p2 in self.helper_annotations], dtype=np.float32)
+
+        if len(src_pts) < 4:
+            QMessageBox.warning(self, "Not enough points", "Need at least 4 point pairs to compute homography.")
+            return
+
+        H, status = cv2.findHomography(src_pts, dst_pts, method=0)
+        if H is None:
+            QMessageBox.warning(self, "Homography failed", "Could not compute homography.")
+            self.predicted_point = None
+            return
+
+        selected_pt = np.array([[self.selected_frame1_point]], dtype=np.float32)
+        pred_pt = cv2.perspectiveTransform(selected_pt, H)
+
+        self.predicted_point = tuple(map(int, pred_pt[0][0]))
+        print(f"Predicted Frame2 point: {self.predicted_point}")
+
+        self.annotations.append((self.selected_frame1_point, self.predicted_point))
+        self.draw_annotations(self.get_frame(self.frame_index + self.offset), frame=2)
+
+        self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
+        print(self.annotations)
+        print(self.helper_annotations)
+        self.update_frames(self.frame_index)
+        self.selected_frame1_point = None
+        self.predicted_point = None
+
     def handle_click_frame1(self, event):
         if self.cap is None:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
 
-        if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is not None:
+        if self.mode == "Manual" and (
+                len(self.annotations) >= self.max_pairs or self.selected_frame1_point is not None):
             return
+        if self.mode == "Homography" and self.selected_frame1_point is not None:
+            return
+
         pos = event.pos()
         scene_pos = self.image_view1.mapToScene(pos)
-        x, y = round(scene_pos.x()), round(scene_pos.y())
-        print(f"Frame1 point selected: ({x:.1f}, {y:.1f})")
-        self.selected_frame1_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
-        self.draw_annotations(self.get_frame(self.frame_index), frame=1)
+        x, y = scene_pos.x(), scene_pos.y()
+
+        frame_rgb = self.get_frame(self.frame_index)
+
+        ptr = frame_rgb.bits()
+        ptr.setsize(frame_rgb.byteCount())
+        arr = np.array(ptr).reshape((frame_rgb.height(), frame_rgb.width(), 3))
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+
+        point = np.array([[[x, y]]], dtype=np.float32)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
+        refined = cv2.cornerSubPix(gray, point, winSize=(5, 5), zeroZone=(-1, -1), criteria=criteria)
+
+        rx, ry = float(refined[0][0][0]), float(refined[0][0][1])
+        self.selected_frame1_point = (int(round(rx)), int(round(ry)))
+        print(f"Refined point: ({rx:.2f}, {ry:.2f})")
+
+        self.update_frames(self.frame_index)
 
     def handle_click_frame2(self, event):
         if self.cap is None:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
 
-        if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is None:
+        if self.mode == "Manual" and len(self.annotations) >= self.max_pairs:
             return
+
+
         pos = event.pos()
         scene_pos = self.image_view2.mapToScene(pos)
-        x, y = round(scene_pos.x()), round(scene_pos.y())
-        print(f"Frame2 point selected: ({x:.1f}, {y:.1f})")
-        self.selected_frame2_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
-        self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
-        self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
+        x, y = scene_pos.x(), scene_pos.y()
+
+        frame_rgb = self.get_frame(self.frame_index)
+        ptr = frame_rgb.bits()
+        ptr.setsize(frame_rgb.byteCount())
+        arr = np.array(ptr).reshape((frame_rgb.height(), frame_rgb.width(), 3))
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+
+        point = np.array([[[x, y]]], dtype=np.float32)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
+        refined = cv2.cornerSubPix(gray, point, winSize=(5, 5), zeroZone=(-1, -1), criteria=criteria)
+
+        rx, ry = float(refined[0][0][0]), float(refined[0][0][1])
+        self.selected_frame2_point = (int(round(rx)), int(round(ry)))
+        print(f"Refined point: ({rx:.2f}, {ry:.2f})")
+
+        if self.mode == "Manual":
+            if len(self.annotations) < self.max_pairs:
+                if self.selected_frame1_point is not None and self.selected_frame2_point is not None:
+                    self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
+                    self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
+            else:
+                pass
+
+        if self.mode == "Homography":
+            if self.selected_frame1_point is not None and self.selected_frame2_point is not None:
+                self.helper_annotations.append((self.selected_frame1_point, self.selected_frame2_point))
+                self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
 
         self.selected_frame1_point = None
         self.selected_frame2_point = None
         self.update_frames(self.frame_index)
 
-    def undo_annotation(self):
-        if self.annotations:
-            last_pair = self.annotations[-1]
-            self.annotations.pop()
-            self.colors.pop()
+    def qimage_to_mat(self, qimage):
+        """Convert QImage to OpenCV BGR image."""
+        width = qimage.width()
+        height = qimage.height()
+        ptr = qimage.bits()
+        ptr.setsize(qimage.byteCount())
+        arr = np.array(ptr).reshape((height, width, 3))
+        return arr.copy()
 
-            self.selected_frame1_point = None
-            self.selected_frame2_point = None
-            print(
-                f"Undid last annotation: Frame 1 point {last_pair[0]} and Frame 2 point {last_pair[1]}")
-            self.update_frames(self.frame_index)
+    def undo_annotation(self):
+        if self.mode == "Homography":
+            if self.helper_annotations:
+                removed = self.helper_annotations.pop()
+                print(f"Undid helper point: Frame 1 point {removed[0]}")
+                print(self.helper_annotations)
+        else:
+            if self.annotations:
+                removed = self.annotations.pop()
+                self.colors.pop()
+                print(f"Undid manual annotation: {removed}")
+                print(self.annotations)
+
+        self.selected_frame1_point = None
+        self.selected_frame2_point = None
+        self.predicted_point = None
+        self.update_frames(self.frame_index)
 
     def clear_annotations(self):
         self.annotations = []
+        self.helper_annotations = []
         self.colors = []
         self.selected_frame1_point = None
         self.selected_frame2_point = None
+        self.predicted_point = None
         self.update_frames(self.frame_index)
         print("Cleared all annotations for a new pair of frames.")
 

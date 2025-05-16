@@ -79,8 +79,8 @@ class VideoFrameComparer(QWidget):
 
         self.image_view1 = ZoomPanGraphicsView()
         self.image_view2 = ZoomPanGraphicsView()
-        self.image_view1.mousePressEvent = self.handle_click_frame1
-        self.image_view2.mousePressEvent = self.handle_click_frame2
+        self.image_view1.leftClick.connect(self.handle_click_frame1)
+        self.image_view2.leftClick.connect(self.handle_click_frame2)
 
         self.save_button = QPushButton("Save Annotation")
         self.save_button.clicked.connect(self.export_annotations)

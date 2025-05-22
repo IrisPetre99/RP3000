@@ -44,69 +44,10 @@ A portion of this tool was using with the assistance of artifical intelligence a
 - Each pair should have a unique color.
 - Have an immediate feedback when selecting the point in the first frame by placing a marker on that spot, not only after the complete pair is selected.
 - Store the list of annotations as pairs of coordinates.
+- Add a method that allows me to import image pairs into this application, and have it function as a video was imported.
+- Modify all methods to no longer require self.cap when handling the new import image function.
+- Modify the code such that i can change the import type dynamically.
 
-### Future Updates: LLM Prompt
 
-You are working with a PyQt5 GUI application that:
 
-Loads and displays two video frames side-by-side.
 
-Allows zooming and panning.
-
-Shows frame numbers.
-
-Lets users set a frame offset and navigate frames.
-
-Keeps all UI elements in a structured layout.
-
-You are provided with the full code of the application. Your task is to extend it with the following features:
-
-New Features to Implement
-1. Pixel Annotation and Mapping
-Allow users to click on a pixel in Frame 1, and then click on the corresponding mapped pixel in Frame 2.
-
-Visually draw a line or dot pair showing the connection between the two.
-
-Allow undoing the most recent annotation.
-
-Optional: Add basic color-coded markers or small tooltips for annotation IDs.
-
-2. Annotation Storage
-Store the list of annotations as pairs of coordinates:
-
-python
-Copy
-Edit
-annotations = [
-    {'frame1': (x1, y1), 'frame2': (x2, y2)},
-    ...
-]
-3. Export Functionality
-Add a "Save Vector Field" button that exports the annotations to:
-
-A JSON file (vector_field.json).
-
-Optionally a .npy file with NumPy arrays if NumPy is available.
-
-4. Visual Feedback and Usability
-Make sure the UI updates correctly after each annotation.
-
-Do not break zoom functionality.
-
-Pan was originally triggered via left-click but was changed to use the right-click to avoid conflicts with the new pixel annotation feature. However, due to limitations in Qt's handling of right-click events, the pan functionality has been removed to maintain a usable UI.
-
-Annotations persist when switching frames. It’s easier to manually undo an annotation than to risk losing all annotations by accidentally advancing to the next frame.
-
-Constraints
-The app is currently structured with ZoomPanGraphicsView widgets for both frames.
-
-The layout has a fixed size; images scale with zoom.
-
-You must not break existing functionality.
-
-Deliverables
-Updated Python code.
-
-Short explanation of where each new part was added.
-
-(Optional) Suggestions for improving annotation UX further.

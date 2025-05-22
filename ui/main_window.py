@@ -135,6 +135,10 @@ class VideoFrameComparer(QWidget):
             QMessageBox.critical(self, "Error", "Failed to open video file.")
             return
 
+        self.image_mode = False
+        self.img1 = None
+        self.img2 = None
+
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.video_path = file_name
         self.video_path_label.setText(file_name)
@@ -360,6 +364,9 @@ class VideoFrameComparer(QWidget):
             self.img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
             self.img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
             self.image_mode = True
+            if self.cap:
+                self.cap.release()
+                self.cap = None
 
             self.cap = None  # disable video mode
             self.frame_index = 0

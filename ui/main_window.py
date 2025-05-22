@@ -12,6 +12,10 @@ class VideoFrameComparer(QWidget):
         self.setWindowTitle("Video Frame Comparer")
         self.setFixedSize(1950, 700)
 
+        self.image_mode = False
+        self.img1 = None
+        self.img2 = None
+
         self.cap = None
         self.total_frames = 0
         self.frame_index = 0
@@ -34,6 +38,8 @@ class VideoFrameComparer(QWidget):
 
         self.load_button = QPushButton("Load Video")
         self.load_button.clicked.connect(self.load_video)
+        self.load_image_pair_button = QPushButton("Load Image Pair")
+        self.load_image_pair_button.clicked.connect(self.load_image_pair)
         self.video_path_label = QLabel("No video loaded")
 
         self.slider = QSlider(Qt.Horizontal)
@@ -84,6 +90,7 @@ class VideoFrameComparer(QWidget):
 
         load_layout = QHBoxLayout()
         load_layout.addWidget(self.load_button)
+        load_layout.addWidget(self.load_image_pair_button)
         load_layout.addWidget(self.video_path_label)
         main_layout.addLayout(load_layout)
 
@@ -148,8 +155,20 @@ class VideoFrameComparer(QWidget):
         self.update_frames(self.frame_index)
 
     def get_frame(self, index):
-        if index >= self.total_frames:
+        if self.image_mode:
+            if index == 0:
+                img = self.img1
+            elif index == 1:
+                img = self.img2
+            else:
+                return None
+            h, w, ch = img.shape
+            bytes_per_line = ch * w
+            return QImage(img.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        if index >= self.total_frames or self.cap is None:
             return None
+
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, index)
         ret, frame = self.cap.read()
         if not ret:
@@ -161,6 +180,21 @@ class VideoFrameComparer(QWidget):
         return QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
     def update_frames(self, value):
+        if self.image_mode:
+            # Display two loaded images
+            if self.img1 is not None:
+                self.label1.setText("Image 1")
+                qimg1 = self.get_frame(0)
+                self.draw_annotations(qimg1, frame=1)
+
+            if self.img2 is not None:
+                self.label2.setText("Image 2")
+                qimg2 = self.get_frame(1)
+                self.draw_annotations(qimg2, frame=2)
+
+            self.timestamp_input.setText("00:00")
+            return
+
         if self.cap is None:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
@@ -215,7 +249,7 @@ class VideoFrameComparer(QWidget):
             self.image_view2.set_image(image, reset_view=False)
 
     def handle_click_frame1(self, event):
-        if self.cap is None:
+        if self.cap is None and not self.image_mode:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
 
@@ -229,7 +263,7 @@ class VideoFrameComparer(QWidget):
         self.draw_annotations(self.get_frame(self.frame_index), frame=1)
 
     def handle_click_frame2(self, event):
-        if self.cap is None:
+        if self.cap is None and not self.image_mode:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
 
@@ -309,3 +343,38 @@ class VideoFrameComparer(QWidget):
             return
 
         self.exporter.export(self.annotations, self.frame_index, img1, img2, export_dir)
+
+    def load_image_pair(self):
+        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Image Pair", "", "Image Files (*.jpg *.jpeg *.png)")
+        if len(file_names) != 2:
+            QMessageBox.warning(self, "Error", "Please select exactly 2 image files.")
+            return
+
+        try:
+            img1 = cv2.imread(file_names[0])
+            img2 = cv2.imread(file_names[1])
+            if img1 is None or img2 is None:
+                raise ValueError("One or both images could not be loaded.")
+
+            # Convert BGR to RGB and store
+            self.img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+            self.img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
+            self.image_mode = True
+
+            self.cap = None  # disable video mode
+            self.frame_index = 0
+            self.total_frames = 2
+            self.video_path_label.setText("Loaded image pair")
+
+            # Hide video-specific controls
+            self.slider.setVisible(False)
+            self.timestamp_input.setVisible(False)
+            self.offset_selector.setVisible(False)
+
+            self.prev_button.setEnabled(False)
+            self.next_button.setEnabled(False)
+
+            self.update_frames(0)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))

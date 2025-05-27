@@ -309,22 +309,10 @@ class VideoFrameComparer(QWidget):
 
         pos = event.pos()
         scene_pos = self.image_view1.mapToScene(pos)
-        x, y = scene_pos.x(), scene_pos.y()
+        x, y = int(round(scene_pos.x())), int(round(scene_pos.y()))
 
-        frame_rgb = self.get_frame(self.frame_index)
-
-        ptr = frame_rgb.bits()
-        ptr.setsize(frame_rgb.byteCount())
-        arr = np.array(ptr).reshape((frame_rgb.height(), frame_rgb.width(), 3))
-        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
-
-        point = np.array([[[x, y]]], dtype=np.float32)
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
-        refined = cv2.cornerSubPix(gray, point, winSize=(5, 5), zeroZone=(-1, -1), criteria=criteria)
-
-        rx, ry = float(refined[0][0][0]), float(refined[0][0][1])
-        self.selected_frame1_point = (int(round(rx)), int(round(ry)))
-        print(f"Refined point: ({rx:.2f}, {ry:.2f})")
+        self.selected_frame1_point = (x, y)
+        print(f"Selected point: ({x}, {y})")
 
         self.update_frames(self.frame_index)
 
@@ -336,32 +324,18 @@ class VideoFrameComparer(QWidget):
         if self.mode == "Manual" and len(self.annotations) >= self.max_pairs:
             return
 
-
         pos = event.pos()
         scene_pos = self.image_view2.mapToScene(pos)
-        x, y = scene_pos.x(), scene_pos.y()
+        x, y = int(round(scene_pos.x())), int(round(scene_pos.y()))
 
-        frame_rgb = self.get_frame(self.frame_index)
-        ptr = frame_rgb.bits()
-        ptr.setsize(frame_rgb.byteCount())
-        arr = np.array(ptr).reshape((frame_rgb.height(), frame_rgb.width(), 3))
-        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
-
-        point = np.array([[[x, y]]], dtype=np.float32)
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
-        refined = cv2.cornerSubPix(gray, point, winSize=(5, 5), zeroZone=(-1, -1), criteria=criteria)
-
-        rx, ry = float(refined[0][0][0]), float(refined[0][0][1])
-        self.selected_frame2_point = (int(round(rx)), int(round(ry)))
-        print(f"Refined point: ({rx:.2f}, {ry:.2f})")
+        self.selected_frame2_point = (x, y)
+        print(f"Selected point: ({x}, {y})")
 
         if self.mode == "Manual":
             if len(self.annotations) < self.max_pairs:
                 if self.selected_frame1_point is not None and self.selected_frame2_point is not None:
                     self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
                     self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
-            else:
-                pass
 
         if self.mode == "Homography":
             if self.selected_frame1_point is not None and self.selected_frame2_point is not None:

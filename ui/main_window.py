@@ -11,7 +11,7 @@ class VideoFrameComparer(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Video Frame Comparer")
-        self.setFixedSize(1950, 700)
+        self.setMinimumSize(1900,1000)
 
         self.cap = None
         self.total_frames = 0

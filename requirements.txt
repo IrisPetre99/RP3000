@@ -2,3 +2,4 @@ opencv-python~=4.11.0.86
 pyqt5~=5.15.11
 qimage2ndarray~=1.10.0
 numpy~=2.2.5
+scipy~=1.12.0

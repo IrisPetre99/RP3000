@@ -1,6 +1,9 @@
 import math
 import random
 import cv2
+import numpy as np
+from scipy.spatial import ConvexHull
+from scipy.interpolate import griddata
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QPainter, QPen, QColor, QImage
@@ -26,6 +29,9 @@ class VideoFrameComparer(QWidget):
         self.colors = []
         self.export_dir=""
 
+        self.convex_hull_pairs = []
+        self.is_convex_hull_mode = False
+
         # TODO: Make a drop-down that allows us to set an output format when we need it.
         self.exporter = KITTIExporter()
 
@@ -41,6 +47,15 @@ class VideoFrameComparer(QWidget):
         self.export_path_button = QPushButton("Set export path")
         self.export_path_button.clicked.connect(self.set_export_path)
         self.export_path_label = QLabel("Not set")
+
+        self.mode_group = QButtonGroup(self)
+        self.point_mode_radio = QRadioButton("Point Mode")
+        self.convex_hull_mode_radio = QRadioButton("Convex Hull Mode")
+        self.point_mode_radio.setChecked(True)
+        self.mode_group.addButton(self.point_mode_radio)
+        self.mode_group.addButton(self.convex_hull_mode_radio)
+        self.point_mode_radio.toggled.connect(self.on_mode_changed)
+        self.convex_hull_mode_radio.toggled.connect(self.on_mode_changed)
 
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setVisible(False)
@@ -113,6 +128,8 @@ class VideoFrameComparer(QWidget):
         control_layout.addWidget(self.undo_button)
         control_layout.addWidget(self.save_button)
         control_layout.addWidget(self.clear_all_annotations_button)
+        control_layout.addWidget(self.point_mode_radio)
+        control_layout.addWidget(self.convex_hull_mode_radio)
         main_layout.addLayout(control_layout)
 
         label_layout = QHBoxLayout()
@@ -220,6 +237,30 @@ class VideoFrameComparer(QWidget):
                 painter.drawLine(QPointF(p2.x() - cross_size, p2.y()), QPointF(p2.x() + cross_size, p2.y()))
                 painter.drawLine(QPointF(p2.x(), p2.y() - cross_size), QPointF(p2.x(), p2.y() + cross_size))
 
+        if self.is_convex_hull_mode and self.convex_hull_pairs:
+            pen = QPen(QColor("cyan"), 1)
+            painter.setPen(pen)
+            
+            # Draw point annotation markers
+            points = []
+            for p1, p2 in self.convex_hull_pairs:
+                point = p1 if frame == 1 else p2
+                points.append(point)
+                p = QPointF(point[0], point[1])
+                painter.drawLine(QPointF(p.x() - cross_size, p.y()), QPointF(p.x() + cross_size, p.y()))
+                painter.drawLine(QPointF(p.x(), p.y() - cross_size), QPointF(p.x(), p.y() + cross_size))
+
+            qpoints = []            
+            if len(points) >= 3:
+                hull = ConvexHull(points)
+                qpoints = [QPointF(p[0],p[1]) for p in hull.points[hull.vertices]]
+            else:
+                qpoints = [QPointF(p[0],p[1]) for p in points]
+            
+            # Draw convex hull outlint
+            for p1, p2 in zip(qpoints, qpoints[1:] + [qpoints[0]]):
+                painter.drawLine(p1, p2)
+
         if frame == 1 and self.selected_frame1_point:
             pen = QPen(QColor("yellow"), 1)
             painter.setPen(pen)
@@ -262,12 +303,23 @@ class VideoFrameComparer(QWidget):
         self.selected_frame2_point = (int(math.floor(scene_pos.x())), int(math.floor(scene_pos.y())))
         self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
         self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
+        if self.is_convex_hull_mode:
+            self.convex_hull_pairs.append((self.selected_frame1_point, self.selected_frame2_point))
+        else:
+            self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
+            self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
 
         self.selected_frame1_point = None
         self.selected_frame2_point = None
         self.update_frames(self.frame_index)
 
     def undo_annotation(self):
+        if self.is_convex_hull_mode:
+            if self.convex_hull_pairs:
+                self.convex_hull_pairs.pop()
+            self.update_frames(self.frame_index)
+            return
+
         if self.annotations:
             last_pair = self.annotations[-1]
             self.annotations.pop()
@@ -280,6 +332,8 @@ class VideoFrameComparer(QWidget):
             self.update_frames(self.frame_index)
 
     def clear_annotations(self):
+        self.convex_hull_points = []
+        self.convex_hull_pairs = []
         self.annotations = []
         self.colors = []
         self.selected_frame1_point = None
@@ -310,9 +364,14 @@ class VideoFrameComparer(QWidget):
         new_index = min(self.total_frames - self.offset - 1, self.frame_index + 1)
         self.slider.setValue(new_index)
 
+    def on_mode_changed(self, checked):
+        if checked:
+            self.is_convex_hull_mode = self.convex_hull_mode_radio.isChecked()
+            self.update_frames(self.frame_index)
 
     def export_annotations(self):
-        if not self.annotations:
+        num_convex_hull_pairs = len(self.convex_hull_pairs)
+        if not self.annotations and num_convex_hull_pairs == 0:
             QMessageBox.warning(self, "Error", "No annotations to export.")
             return
 
@@ -326,5 +385,37 @@ class VideoFrameComparer(QWidget):
         if img1 is None or img2 is None:
             QMessageBox.warning(self, "Error", "Failed to retrieve frames for export.")
             return
+        
+        annotations = list(self.annotations)
 
-        self.exporter.export(self.annotations, self.frame_index, img1, img2, self.export_dir)
+        if num_convex_hull_pairs > 0 and num_convex_hull_pairs < 3:
+            QMessageBox.warning(self, "Error", "Not enough convex hull annotation pairs")
+            return
+
+        if num_convex_hull_pairs >= 3:
+            flow_w = img1.width()
+            flow_h = img1.height()
+
+            points = np.array([p1 for p1, _ in self.convex_hull_pairs], dtype=np.float32)
+            flows = np.array([(p2[0] - p1[0], p2[1] - p1[1]) for p1, p2 in self.convex_hull_pairs], dtype=np.float32)
+
+            hull = ConvexHull(points)
+            hull_points = points[hull.vertices]
+
+            mask = np.zeros((flow_h, flow_w), dtype=np.uint8)
+            cv2.fillPoly(mask, [np.round(hull_points).astype(np.int32)], 1)
+
+            y, x = np.nonzero(mask)
+            inside_points = np.column_stack((x, y)).astype(np.float32)
+
+            inside_flows = griddata(points, flows, inside_points, method='linear')
+            valid_mask = ~np.isnan(inside_flows).any(axis=1)
+            valid_points = inside_points[valid_mask]
+            valid_flows = inside_flows[valid_mask]
+
+            for point, flow in zip(valid_points, valid_flows):
+                point_a = (int(point[0]), int(point[1]))
+                point_b = (int(point[0] + flow[0]), int(point[1] + flow[1]))
+                annotations.append((point_a,point_b))
+
+        self.exporter.export(annotations, self.frame_index, img1, img2, self.export_dir)

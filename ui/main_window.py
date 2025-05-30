@@ -1,3 +1,4 @@
+import math
 import random
 import cv2
 from PyQt5.QtWidgets import *
@@ -240,9 +241,9 @@ class VideoFrameComparer(QWidget):
             return
         pos = event.pos()
         scene_pos = self.image_view1.mapToScene(pos)
-        x, y = round(scene_pos.x()), round(scene_pos.y())
+        x, y = math.floor(scene_pos.x()), math.floor(scene_pos.y())
         print(f"Frame1 point selected: ({x:.1f}, {y:.1f})")
-        self.selected_frame1_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
+        self.selected_frame1_point = (int(math.floor(scene_pos.x())), int(math.floor(scene_pos.y())))
         self.draw_annotations(self.get_frame(self.frame_index), frame=1)
 
     def handle_click_frame2(self, event):
@@ -254,9 +255,9 @@ class VideoFrameComparer(QWidget):
             return
         pos = event.pos()
         scene_pos = self.image_view2.mapToScene(pos)
-        x, y = round(scene_pos.x()), round(scene_pos.y())
+        x, y = math.floor(scene_pos.x()), math.floor(scene_pos.y())
         print(f"Frame2 point selected: ({x:.1f}, {y:.1f})")
-        self.selected_frame2_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
+        self.selected_frame2_point = (int(math.floor(scene_pos.x())), int(math.floor(scene_pos.y())))
         self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
         self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
 

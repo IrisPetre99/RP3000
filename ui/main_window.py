@@ -14,6 +14,7 @@ class VideoFrameComparer(QWidget):
 
         self.cap = None
         self.total_frames = 0
+        self.distance_label = QLabel("Distance: -")  # Add distance label
         self.frame_index = 0
         self.offset = 1
         self.video_path = ""
@@ -104,6 +105,7 @@ class VideoFrameComparer(QWidget):
 
         label_layout = QHBoxLayout()
         label_layout.addWidget(self.label1, alignment=Qt.AlignCenter)
+        label_layout.addWidget(self.distance_label, alignment=Qt.AlignCenter)  # Add distance label to layout
         label_layout.addWidget(self.label2, alignment=Qt.AlignCenter)
         main_layout.addLayout(label_layout)
 
@@ -241,17 +243,29 @@ class VideoFrameComparer(QWidget):
         print(f"Frame2 point selected: ({x:.1f}, {y:.1f})")
         self.selected_frame2_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
         self.annotations.append((self.selected_frame1_point, self.selected_frame2_point))
+        self.update_distance_label()
         self.colors.append(QColor(*[random.randint(0, 255) for _ in range(3)]))
 
         self.selected_frame1_point = None
         self.selected_frame2_point = None
         self.update_frames(self.frame_index)
 
+    def update_distance_label(self):
+        if self.annotations:
+            f1_point, f2_point = self.annotations[-1]
+            x1, y1 = f1_point
+            x2, y2 = f2_point
+            distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+            self.distance_label.setText(f"Distance: {distance:.2f} pixels")
+        else:
+            self.distance_label.setText("Distance: -")
+
     def undo_annotation(self):
         if self.annotations:
             last_pair = self.annotations[-1]
             self.annotations.pop()
             self.colors.pop()
+            self.update_distance_label()
 
             self.selected_frame1_point = None
             self.selected_frame2_point = None
@@ -265,6 +279,7 @@ class VideoFrameComparer(QWidget):
         self.selected_frame1_point = None
         self.selected_frame2_point = None
         self.update_frames(self.frame_index)
+        self.update_distance_label()
         print("Cleared all annotations for a new pair of frames.")
 
     def update_frame_from_timestamp(self):

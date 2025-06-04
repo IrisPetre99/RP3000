@@ -15,6 +15,7 @@ class VideoFrameComparer(QWidget):
         self.cap = None
         self.total_frames = 0
         self.frame_index = 0
+        self.frame_step = 4
         self.offset = 1
         self.video_path = ""
 
@@ -35,7 +36,8 @@ class VideoFrameComparer(QWidget):
         self.load_button = QPushButton("Load Video")
         self.load_button.clicked.connect(self.load_video)
         self.video_path_label = QLabel("No video loaded")
-
+        self.export_frames_button = QPushButton("Export All Frames")
+        self.export_frames_button.clicked.connect(self.export_all_frames)
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setVisible(False)
         self.slider.valueChanged.connect(self.update_frames)
@@ -88,8 +90,10 @@ class VideoFrameComparer(QWidget):
         self.y_input.setPlaceholderText("Y")
         self.y_input.setFixedWidth(60)
 
-        self.manual_point_button = QPushButton("Type Frame 2 Point")
-        self.manual_point_button.clicked.connect(self.add_frame2_point_from_input)
+        self.manual_point_frame1_button = QPushButton("Type Frame 1 Point")
+        self.manual_point_frame1_button.clicked.connect(self.add_frame1_point_from_input)
+        self.manual_point_frame2_button = QPushButton("Type Frame 2 Point")
+        self.manual_point_frame2_button.clicked.connect(self.add_frame2_point_from_input)
 
         main_layout = QVBoxLayout()
 
@@ -113,7 +117,9 @@ class VideoFrameComparer(QWidget):
         control_layout.addWidget(self.clear_all_annotations_button)
         control_layout.addWidget(self.x_input)
         control_layout.addWidget(self.y_input)
-        control_layout.addWidget(self.manual_point_button)
+        control_layout.addWidget(self.manual_point_frame1_button)
+        control_layout.addWidget(self.manual_point_frame2_button)
+        control_layout.addWidget(self.export_frames_button)
         main_layout.addLayout(control_layout)
 
         label_layout = QHBoxLayout()
@@ -146,7 +152,7 @@ class VideoFrameComparer(QWidget):
         self.video_path = file_name
         self.video_path_label.setText(file_name)
 
-        self.slider.setMaximum(self.total_frames - 2)
+        self.slider.setMaximum(self.total_frames // self.frame_step - 1)
         self.slider.setValue(0)
         self.slider.setVisible(True)
         self.timestamp_input.setVisible(True)
@@ -156,6 +162,38 @@ class VideoFrameComparer(QWidget):
         self.next_button.setEnabled(True)
 
         self.update_frames(0)
+
+    def export_all_frames(self):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
+
+        export_dir = QFileDialog.getExistingDirectory(self, "Select Directory to Export All Frames")
+        if not export_dir:
+            return
+
+        frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_index_idx = 0
+        saved = 0
+
+        for frame_index in range(0, frame_count, self.frame_step):
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+
+            # Convert to RGB and then to QImage
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame_rgb.shape
+            bytes_per_line = ch * w
+            qimg = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+            # Save frame as PNG
+            qimg.save(f"{export_dir}/frame_{frame_index_idx:06}.png")
+            saved += 1
+            frame_index_idx += 1
+
+        QMessageBox.information(self, "Export Complete", f"{saved} frames exported to:\n{export_dir}")
 
     def update_offset(self, val):
         self.offset = val
@@ -179,9 +217,11 @@ class VideoFrameComparer(QWidget):
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
 
-        self.frame_index = value
-        frame1 = self.get_frame(value)
-        frame2 = self.get_frame(value + self.offset)
+        real_frame1 = value * self.frame_step
+        real_frame2 = real_frame1 + self.offset * self.frame_step
+        self.frame_index = real_frame1
+        frame1 = self.get_frame(real_frame1)
+        frame2 = self.get_frame(real_frame2)
 
         if frame1:
             self.label1.setText(f"Frame: {value}")
@@ -272,6 +312,28 @@ class VideoFrameComparer(QWidget):
         self.selected_frame2_point = None
         self.update_frames(self.frame_index)
 
+    def add_frame1_point_from_input(self):
+        if self.cap is None:
+            QMessageBox.warning(self, "Error", "No video loaded.")
+            return
+
+        if len(self.annotations) >= self.max_pairs or self.selected_frame1_point is not None:
+            QMessageBox.warning(self, "Error", "You already selected a Frame 1 point or reached max pairs.")
+            return
+
+        try:
+            x = int(self.x_input.text())
+            y = int(self.y_input.text())
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Invalid coordinates.")
+            return
+
+        self.selected_frame1_point = (x, y)
+        print(f"Frame1 point selected manually: ({x}, {y})")
+        self.x_input.clear()
+        self.y_input.clear()
+        self.draw_annotations(self.get_frame(self.frame_index), frame=1)
+
     def add_frame2_point_from_input(self):
         if self.cap is None:
             QMessageBox.warning(self, "Error", "No video loaded.")
@@ -332,14 +394,14 @@ class VideoFrameComparer(QWidget):
         if self.cap is None:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
-        new_index = max(0, self.frame_index - 1)
+        new_index = max(0, self.slider.value() - 1)
         self.slider.setValue(new_index)
 
     def go_next(self):
         if self.cap is None:
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
-        new_index = min(self.total_frames - self.offset - 1, self.frame_index + 1)
+        new_index = min(self.slider.maximum(), self.slider.value() + 1)
         self.slider.setValue(new_index)
 
 

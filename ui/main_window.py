@@ -13,6 +13,7 @@ class VideoFrameComparer(QWidget):
         self.setFixedSize(1850, 700)
 
         self.cap = None
+        self.slider_index = 0
         self.total_frames = 0
         self.frame_index = 0
         self.frame_step = 4
@@ -197,9 +198,10 @@ class VideoFrameComparer(QWidget):
 
     def update_offset(self, val):
         self.offset = val
-        self.update_frames(self.frame_index)
+        self.update_frames(self.slider_index)
 
     def get_frame(self, index):
+        print(index)
         if index >= self.total_frames:
             return None
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, index)
@@ -217,7 +219,8 @@ class VideoFrameComparer(QWidget):
             QMessageBox.warning(self, "Error", "No video loaded.")
             return
 
-        real_frame1 = value * self.frame_step
+        self.slider_index = value
+        real_frame1 = self.slider_index * self.frame_step
         real_frame2 = real_frame1 + self.offset * self.frame_step
         self.frame_index = real_frame1
         frame1 = self.get_frame(real_frame1)
@@ -291,7 +294,7 @@ class VideoFrameComparer(QWidget):
         x, y = round(scene_pos.x()), round(scene_pos.y())
         print(f"Frame1 point selected: ({x:.1f}, {y:.1f})")
         self.selected_frame1_point = (int(round(scene_pos.x())), int(round(scene_pos.y())))
-        self.draw_annotations(self.get_frame(self.frame_index), frame=1)
+        self.draw_annotations(self.get_frame(self.slider_index * self.frame_step), frame=1)
 
     def handle_click_frame2(self, event):
         if self.cap is None:
@@ -310,7 +313,7 @@ class VideoFrameComparer(QWidget):
 
         self.selected_frame1_point = None
         self.selected_frame2_point = None
-        self.update_frames(self.frame_index)
+        self.update_frames(self.slider_index)
 
     def add_frame1_point_from_input(self):
         if self.cap is None:
@@ -332,7 +335,7 @@ class VideoFrameComparer(QWidget):
         print(f"Frame1 point selected manually: ({x}, {y})")
         self.x_input.clear()
         self.y_input.clear()
-        self.draw_annotations(self.get_frame(self.frame_index), frame=1)
+        self.draw_annotations(self.get_frame(self.slider_index * self.frame_step), frame=1)
 
     def add_frame2_point_from_input(self):
         if self.cap is None:
@@ -359,7 +362,7 @@ class VideoFrameComparer(QWidget):
         self.selected_frame2_point = None
         self.x_input.clear()
         self.y_input.clear()
-        self.update_frames(self.frame_index)
+        self.update_frames(self.slider_index)
 
     def undo_annotation(self):
         if self.annotations:
@@ -371,14 +374,14 @@ class VideoFrameComparer(QWidget):
             self.selected_frame2_point = None
             print(
                 f"Undid last annotation: Frame 1 point {last_pair[0]} and Frame 2 point {last_pair[1]}")
-            self.update_frames(self.frame_index)
+            self.update_frames(self.slider_index)
 
     def clear_annotations(self):
         self.annotations = []
         self.colors = []
         self.selected_frame1_point = None
         self.selected_frame2_point = None
-        self.update_frames(self.frame_index)
+        self.update_frames(self.slider_index)
         print("Cleared all annotations for a new pair of frames.")
 
     def update_frame_from_timestamp(self):
@@ -416,7 +419,7 @@ class VideoFrameComparer(QWidget):
             return
 
         img1 = self.get_frame(self.frame_index)
-        img2 = self.get_frame(self.frame_index + self.offset)
+        img2 = self.get_frame(self.frame_index + self.offset * self.frame_step)
 
         if img1 is None or img2 is None:
             QMessageBox.warning(self, "Error", "Failed to retrieve frames for export.")

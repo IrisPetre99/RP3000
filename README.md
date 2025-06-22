@@ -18,7 +18,10 @@ This tool was designed to import and annotate videos to be used in the evaluatio
 - Clear all existing annotations from the current frame pair
 - AAnnotate multiple, different pairs of frames from the same video
 - The ability to export the resultant sparse vector field in a form understandable or comparable with the current model outputs. 
-
+- The ability to export all the frames before annotation
+- The ability to input pixel coordinates for both Frame 1 and 2
+- Exporting the frames using KITTI's resolution
+- Having a border that indicates KITTI's resolution for visual annotation support
 
 ## Prompts used
 
@@ -44,6 +47,10 @@ A portion of this tool was using with the assistance of artifical intelligence a
 - Each pair should have a unique color.
 - Have an immediate feedback when selecting the point in the first frame by placing a marker on that spot, not only after the complete pair is selected.
 - Store the list of annotations as pairs of coordinates.
+- Add a visual border or rectangle over the original full-resolution frame that indicates where the KITTI crop lies
+- Crop from the center of the frame to match KITTI's resolution (1242×375)
+- Add a button to export the frames before annotating them
+- How to input pixel coordinates to mark their location in frame 1 and frame 2, without needing to click on a pixel
 
 ### Future Updates: LLM Prompt
 

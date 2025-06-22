@@ -201,7 +201,6 @@ class VideoFrameComparer(QWidget):
         self.update_frames(self.slider_index)
 
     def get_frame(self, index):
-        print(index)
         if index >= self.total_frames:
             return None
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, index)

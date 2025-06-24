@@ -1,5 +1,6 @@
-# Research-Project
+# Research Project 2025
 
+Annotation tool for optical flow, developed as part of the Research Project 2025 at TU Delft.
 ## Current functionality:
 
 This tool was designed to import and annotate videos to be used in the evaluation of real-world optical flow datasets. Currently, the tool supports the following functionatilies:
@@ -16,7 +17,7 @@ This tool was designed to import and annotate videos to be used in the evaluatio
 - When a pixel is selected in the first frame, it is temporarily colored yellow. After selecting the corresponding pixel in the second frame, the pair is assigned a random color.
 - Undo functionality for the most recent annotation
 - Clear all existing annotations from the current frame pair
-- AAnnotate multiple, different pairs of frames from the same video
+- Annotate multiple, different pairs of frames from the same video
 - The ability to export the resultant sparse vector field in a form understandable or comparable with the current model outputs. 
 
 
